@@ -1,11 +1,13 @@
 # Importações básicas
 import os
 
-# Loader de documentos PDF
+# Loaders e chunking
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Divisão de texto em blocos
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import CharacterTextSplitter
 
 # Embeddings
 #from langchain_openai import OpenAIEmbeddings
@@ -18,6 +20,25 @@ from langchain_community.vectorstores import Chroma
 
 # Cadeia RAG
 #from langchain.chains import RetrievalQA
+
+CHUNK_SIZE = 800
+CHUNK_OVERLAP = 200
+
+def gerar_chunks_recursivos(documentos):
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP
+    )
+
+    return splitter.split_documents(documentos)
+
+def gerar_chunks_paragrafo(documentos):
+    splitter = CharacterTextSplitter(
+        separator="\n\n", 
+        chunk_size=CHUNK_SIZE, 
+        chunk_overlap=CHUNK_OVERLAP)
+
+    return splitter.split_documents(documentos)
 
 def carregar_documentos():
     """Carrega documentos PDF da pasta 'dados' e adiciona metadados de fonte."""
@@ -66,3 +87,15 @@ fontes = set(list(map(lambda doc: doc.metadata.get("fonte"), documentos)))
 for fonte in fontes:
     count = len(list(filter(lambda doc: doc.metadata.get("fonte") == fonte, documentos)))
     print(f"Fonte '{fonte}': {count}")
+
+chunks = gerar_chunks_recursivos(documentos)
+print(f"%", chunks[0])
+print(f"Chunks gerados: {len(chunks)}")
+tamanho_medio_chunk = sum(len(chunk.page_content) for chunk in chunks) / len(chunks)
+print(f"Tamanho médio dos chunks: {tamanho_medio_chunk:.0f} caracteres")
+
+chunks = gerar_chunks_paragrafo(documentos)
+
+print(f"Chunks gerados: {len(chunks)}")
+tamanho_medio_chunk = sum(len(chunk.page_content) for chunk in chunks) / len(chunks)
+print(f"Tamanho médio dos chunks: {tamanho_medio_chunk:.0f} caracteres")
