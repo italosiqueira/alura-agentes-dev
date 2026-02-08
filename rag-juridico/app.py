@@ -24,19 +24,19 @@ from langchain_community.vectorstores import Chroma
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 200
 
-def gerar_chunks_recursivos(documentos):
+def gerar_chunks_recursivos(documentos, overlap=CHUNK_OVERLAP):
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP
+        chunk_overlap=overlap
     )
 
     return splitter.split_documents(documentos)
 
-def gerar_chunks_paragrafo(documentos):
+def gerar_chunks_paragrafo(documentos, overlap=CHUNK_OVERLAP):
     splitter = CharacterTextSplitter(
         separator="\n\n", 
         chunk_size=CHUNK_SIZE, 
-        chunk_overlap=CHUNK_OVERLAP)
+        chunk_overlap=overlap)
 
     return splitter.split_documents(documentos)
 
@@ -88,14 +88,13 @@ for fonte in fontes:
     count = len(list(filter(lambda doc: doc.metadata.get("fonte") == fonte, documentos)))
     print(f"Fonte '{fonte}': {count}")
 
+
 chunks = gerar_chunks_recursivos(documentos)
-print(f"%", chunks[0])
 print(f"Chunks gerados: {len(chunks)}")
 tamanho_medio_chunk = sum(len(chunk.page_content) for chunk in chunks) / len(chunks)
 print(f"Tamanho médio dos chunks: {tamanho_medio_chunk:.0f} caracteres")
 
 chunks = gerar_chunks_paragrafo(documentos)
-
 print(f"Chunks gerados: {len(chunks)}")
 tamanho_medio_chunk = sum(len(chunk.page_content) for chunk in chunks) / len(chunks)
 print(f"Tamanho médio dos chunks: {tamanho_medio_chunk:.0f} caracteres")
