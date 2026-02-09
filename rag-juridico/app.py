@@ -21,7 +21,7 @@ from langchain_chroma import Chroma
 #from langchain_community.vectorstores import Chroma
 
 # LLM
-#from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI
 
 # Cadeia RAG
 #from langchain.chains import RetrievalQA
@@ -30,10 +30,16 @@ from langchain_chroma import Chroma
 PROJECT_DIR = os.path.dirname(__file__)
 
 CHUNK_SIZE = 800
+
 CHUNK_OVERLAP = 200
-EMBEDDING_MODEL = "text-embedding-3-small"
 
 COLECAO_UNIFICADA = "documentos_juridicos"
+
+# Embedding model da OpenAI (exemplo: "text-embedding-3-small" ou "text-embedding-3-large")
+EMBEDDING_MODEL = "text-embedding-3-small"
+
+# Modelo de linguagem da OpenAI (exemplo: "gpt-4o-mini" ou "gpt-4o")
+LLM_MODEL = "gpt-4o-mini"
 
 # Carregar a API Key do nosso provedor de modelos de LLMs
 load_dotenv()
@@ -73,6 +79,7 @@ def criar_carregar_vectorstore(_chunks, _colecao_nome):
         print(f"Criando VectorStore em {persist_directory}", persist_directory)
         vectorstore = criar_vectorstore(embeddings, persist_directory, _colecao_nome, _chunks)
     
+    print(f"VectorStore '{vectorstore._collection.name}' pronta para uso!")
     return vectorstore
 
 def criar_vectorstore(_embedding, _persist_directory = "./chroma_db", _colecao_nome = "default", _documentos = []):
@@ -178,6 +185,18 @@ for c in vectorstore._client.list_collections():
         c.count(),
         "documentos"
     )
-    # exemplo = c.get(limit=5)
-    # for meta in exemplo["metadatas"]:
-    #     print(f"  - {meta}")
+
+retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 5})
+
+perguntas = [
+    "O fornecedor pode se eximir de responsabilidade?",
+    "Em que casos o consentimento é obrigatório?"
+]
+
+for pergunta in perguntas:
+    print(f"\n\nPergunta: {pergunta}")
+    resultados = retriever.invoke(pergunta)
+    for i, doc in enumerate(resultados):
+        metadados = dict(filter(lambda pair: pair[0] in ["total_pages", "author", "page", "fonte"], doc.metadata.items()))
+        print(f"\n--- Resultado {i+1} (Metadata: {metadados}) ---")
+        print(doc.page_content)
