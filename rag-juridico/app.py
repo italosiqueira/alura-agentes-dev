@@ -29,44 +29,72 @@ from langchain_chroma import Chroma
 # Pasta do projeto
 PROJECT_DIR = os.path.dirname(__file__)
 
-CHROMA_DB_FILE = "chroma.sqlite3"
-
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 200
 EMBEDDING_MODEL = "text-embedding-3-small"
+
+COLECAO_UNIFICADA = "documentos_juridicos"
 
 # Carregar a API Key do nosso provedor de modelos de LLMs
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-def criar_vectorstore(_chunks):
-    """Cria um vectorstore usando Chroma a partir dos chunks e embeddings fornecidos."""
+def criar_vectorstore_por_fonte(_chunks):
+
+    # Configuração do Chroma para armazenamento local
+    persist_directory = os.path.join(PROJECT_DIR, "chroma_db")
+    # Usando um embedding model da OpenAI
+    embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL)
+
+    # Extrai informações sobre o metadado "fonte"
+    fontes = set(list(map(lambda doc: doc.metadata.get("fonte"), _chunks)))
+
+    for fonte in fontes:
+        count = len(list(filter(lambda doc: doc.metadata.get("fonte") == fonte, _chunks)))
+        print(f"Fonte (chunks) '{fonte}': {count}")
+        criar_vectorstore(embeddings, persist_directory, fonte, 
+                            list(filter(lambda doc: doc.metadata.get("fonte") == fonte, _chunks)))
+
+def criar_carregar_vectorstore(_chunks, _colecao_nome):
+    
     vectorstore = None
 
     # Configuração do Chroma para armazenamento local
     persist_directory = os.path.join(PROJECT_DIR, "chroma_db")
-    print(f"Pasta da VectorStore Chroma: {persist_directory}")
+    # Usando um embedding model da OpenAI
+    embeddings = OpenAIEmbeddings(model=EMBEDDING_MODEL)
 
-    persist_file = os.path.join(PROJECT_DIR, "chroma_db", CHROMA_DB_FILE)
-    collection_name = "documentos_juridicos"
-    if (os.path.exists(persist_file) and os.path.isfile(persist_file)):
-        print(f"Arquivo '{persist_file}' já existe. Carregando VectorStore...")
-        vectorstore = Chroma(
-            embedding_function=OpenAIEmbeddings(model=EMBEDDING_MODEL),
-            persist_directory=persist_directory,
-            collection_name=collection_name
-        )
+    if (os.path.exists(persist_directory) and os.path.isdir(persist_directory)):
+        # Carrega vectorstore pré-existente (não gera cobrança)
+        print(f"Carregando VectorStore em {persist_directory}", persist_directory)
+        vectorstore = carregar_vectorstore(embeddings, persist_directory, _colecao_nome)
     else:
         # Criação do vectorstore
-        print(f"Criando VectorStore...")
-        vectorstore = Chroma.from_documents(
-            documents=_chunks,
-            # Usando um embedding model da OpenAI
-            embedding=OpenAIEmbeddings(model=EMBEDDING_MODEL),
-            persist_directory=persist_directory,
-            collection_name=collection_name
-        )
+        print(f"Criando VectorStore em {persist_directory}", persist_directory)
+        vectorstore = criar_vectorstore(embeddings, persist_directory, _colecao_nome, _chunks)
     
+    return vectorstore
+
+def criar_vectorstore(_embedding, _persist_directory = "./chroma_db", _colecao_nome = "default", _documentos = []):
+    return Chroma.from_documents(
+        documents = _documentos,
+        embedding = _embedding,
+        persist_directory= _persist_directory,
+        collection_name = _colecao_nome
+    )
+
+def carregar_vectorstore(_embedding, _persist_directory = "./chroma_db", _colecao_nome = "default"):
+    vectorstore = None
+    CHROMA_DB_FILE = "chroma.sqlite3"
+
+    persist_file = os.path.join(_persist_directory, CHROMA_DB_FILE)
+    if (os.path.exists(_persist_directory) and os.path.isdir(_persist_directory)
+            and os.path.isfile(persist_file)):
+        vectorstore = Chroma(
+            embedding_function=_embedding,
+            persist_directory=_persist_directory,
+            collection_name=_colecao_nome
+        )
     return vectorstore
 
 def gerar_chunks_recursivos(documentos, overlap=CHUNK_OVERLAP):
@@ -133,16 +161,16 @@ for fonte in fontes:
 
 
 chunks = gerar_chunks_recursivos(documentos)
+# chunks = gerar_chunks_paragrafo(documentos)
 print(f"Chunks gerados: {len(chunks)}")
 tamanho_medio_chunk = sum(len(chunk.page_content) for chunk in chunks) / len(chunks)
 print(f"Tamanho médio dos chunks: {tamanho_medio_chunk:.0f} caracteres")
 
-# chunks = gerar_chunks_paragrafo(documentos)
-# print(f"Chunks gerados: {len(chunks)}")
-# tamanho_medio_chunk = sum(len(chunk.page_content) for chunk in chunks) / len(chunks)
-# print(f"Tamanho médio dos chunks: {tamanho_medio_chunk:.0f} caracteres")
+# Extra (opcional): criar coleções separadas por fonte
+#criar_vectorstore_por_fonte(chunks)
 
-vectorstore = criar_vectorstore(chunks)
+# Criar coleção unificada
+vectorstore = criar_carregar_vectorstore(chunks, COLECAO_UNIFICADA)
 for c in vectorstore._client.list_collections():
     print(
         c.name,
@@ -150,6 +178,6 @@ for c in vectorstore._client.list_collections():
         c.count(),
         "documentos"
     )
-    exemplo = c.get(limit=5)
-    for meta in exemplo["metadatas"]:
-        print(f"  - {meta}")
+    # exemplo = c.get(limit=5)
+    # for meta in exemplo["metadatas"]:
+    #     print(f"  - {meta}")
