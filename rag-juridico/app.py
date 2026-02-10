@@ -45,6 +45,29 @@ LLM_MODEL = "gpt-4o-mini"
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+def responder_pergunta(pergunta, vectorstore):
+    retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 5})
+    resultados = retriever.invoke(pergunta)
+
+    contexto_texto = "\n\n".join(
+        [doc.page_content for doc in resultados]
+    )
+
+    prompt_final = f"""
+Responda somente com base no contexto fornecido.
+
+Contexto:
+{contexto_texto}
+
+Pergunta:
+{pergunta}
+"""
+    
+    llm = ChatOpenAI(model=LLM_MODEL, temperature=0.0)
+    resposta = llm.invoke(prompt_final)
+    
+    return resposta.content, resultados
+
 def criar_vectorstore_por_fonte(_chunks):
 
     # Configuração do Chroma para armazenamento local
@@ -186,17 +209,20 @@ for c in vectorstore._client.list_collections():
         "documentos"
     )
 
-retriever = vectorstore.as_retriever(search_type="similarity", search_kwargs={"k": 5})
-
 perguntas = [
-    "O fornecedor pode se eximir de responsabilidade?",
-    "Em que casos o consentimento é obrigatório?"
+    "O consumidor pode desistir da compra feita pela Internet?",
+    "Quais são os direitos do titular de dados pessoais?",
+    "A quais medidas sócio-educativas está sujeito o menor infrator até atingir a maioridade?"
 ]
 
 for pergunta in perguntas:
     print(f"\n\nPergunta: {pergunta}")
-    resultados = retriever.invoke(pergunta)
-    for i, doc in enumerate(resultados):
+
+    resposta, contexto = responder_pergunta(pergunta, vectorstore)
+
+    print(f"\nResposta: {resposta}\n")
+
+    for i, doc in enumerate(contexto):
         metadados = dict(filter(lambda pair: pair[0] in ["total_pages", "author", "page", "fonte"], doc.metadata.items()))
-        print(f"\n--- Resultado {i+1} (Metadata: {metadados}) ---")
+        print(f"\n--- Fonte {i+1} (Metadata: {metadados}) ---")
         print(doc.page_content)
