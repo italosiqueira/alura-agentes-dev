@@ -24,6 +24,18 @@ LLM_MODEL = "gpt-4o-mini"
 # LLM
 llm = ChatOpenAI(model=LLM_MODEL, temperature=0.0, api_key=config['OPENAI_API_KEY'])
 
+# Recupera os documentos na Vectorstore
+vectorstore = bd.carregar_vectorstore()
+
+# Recuperando o retriever do Vectorstore (opcional)
+# Para uso com a cadeia RAG da LangChain, o retriever é necessário. 
+# Mas como estamos implementando a cadeia manualmente, podemos usar 
+# diretamente o vectorstore para recuperação.
+retriever = vectorstore.as_retriever(
+    search_type="similarity", 
+    search_kwargs={"k": 5}
+)
+
 def rerank_documentos(pergunta, documentos, llm):
     
     prompt_rerank = PromptTemplate(
@@ -71,18 +83,8 @@ Responda apenas com um número de 0 a 10.
 
 def responder_pergunta(pergunta, rerank=False):
 
-    # Recupera os documentos na Vectorstore
-    vectorstore = bd.carregar_vectorstore()
-
-    # Recuperando o retriever do Vectorstore (opcional)
-    # É possivel utilizar o Vectorstore diretamente
-    retriever = vectorstore.as_retriever(
-        search_type="similarity", 
-        search_kwargs={"k": 15}
-    )
-
-    # Recuperação inicial via retriever (top-15)
-    documentos_recuperados = retriever.invoke(pergunta)
+    # Recuperação inicial via Chroma Vectorstore (top-15)
+    documentos_recuperados = vectorstore.similarity_search(pergunta, k=15)
 
     contexto_final = []
     if (rerank):
