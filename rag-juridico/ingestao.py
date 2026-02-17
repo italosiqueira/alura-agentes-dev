@@ -1,7 +1,7 @@
 import os
 
 # Gerenciamento local de chaves de API
-from dotenv import load_dotenv
+import dotenv
 
 # Loaders e chunking
 from langchain_community.document_loaders import PyPDFLoader
@@ -15,6 +15,9 @@ from langchain_chroma import Chroma
 
 # Embeddings
 from langchain_openai import OpenAIEmbeddings
+
+# Carrega as variáveis de ambiente necessárias (ex: API Keys)
+config = dotenv.dotenv_values()
 
 # Pasta do projeto
 PROJECT_DIR = os.path.dirname(__file__)
@@ -44,10 +47,7 @@ CHUNK_OVERLAP = 200
 # Embedding model da OpenAI (exemplo: "text-embedding-3-small" ou "text-embedding-3-large")
 EMBEDDING_MODEL = "text-embedding-3-small"
 
-# Carregar a API Key do nosso provedor de modelos de LLMs
-load_dotenv()
-
-embedding = OpenAIEmbeddings(model=EMBEDDING_MODEL)
+embedding = OpenAIEmbeddings(model=EMBEDDING_MODEL, api_key=config['OPENAI_API_KEY'])
 
 def gerar_chunks_recursivos(documentos, overlap=CHUNK_OVERLAP):
     splitter = RecursiveCharacterTextSplitter(
