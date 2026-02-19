@@ -1,18 +1,33 @@
 import rag
 
-perguntas = [
-    "O consumidor pode desistir da compra feita pela Internet?",
-    "Quais são os direitos do titular de dados pessoais?"
-]
+def efetua_pergunta():
+    print('---\n')
+    return input('# PERGUNTA (digite "sair" para encerrar) \n')
 
-for pergunta in perguntas:
-    print(f"\n\nPergunta: {pergunta}")
 
-    resposta, contexto = rag.responder_pergunta(pergunta, rerank=True)
+def imprime_fontes(fontes: dict[str, list[str]]):
+    print('## FONTES:')
 
-    print(f"\nResposta: {resposta}\n")
-
-    for i, doc in enumerate(contexto):
+    for i, doc in enumerate(fontes):
         metadados = dict(filter(lambda pair: pair[0] in ["total_pages", "author", "page", "fonte"], doc.metadata.items()))
-        print(f"\n--- Fonte {i+1} (Metadata: {metadados}) ---")
-        print(doc.page_content)
+        print(f'  - Fonte {i+1} (Metadata: {metadados})')
+
+def inicia_chat():
+    print('### BEM-VINDO AO ASSISTENTE JURÍDICO! FAÇA SUAS PERGUNTAS SOBRE O CDC E A LGPD. ###')
+    
+    prompt = efetua_pergunta()
+    
+    while prompt.strip().lower() != 'sair':
+        resposta, contexto = rag.responder_pergunta(prompt, rerank=True)
+        print(f'\n# RESPOSTA\n{resposta}\n')
+        
+        if (resposta.strip() != "Desculpe, só posso responder perguntas sobre o CDC e a LGPD."):
+            imprime_fontes(contexto)
+
+        prompt = efetua_pergunta()
+
+    print('### OBRIGADO POR USAR O ASSISTENTE JURÍDICO! ATÉ LOGO! ###')
+
+
+if __name__ == "__main__":
+    inicia_chat()

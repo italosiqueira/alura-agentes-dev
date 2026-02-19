@@ -104,6 +104,7 @@ def responder_pergunta(pergunta, rerank=False):
 
     prompt_final = f"""
 Responda somente com base no contexto fornecido.
+Se a pergunta não estiver relacionada ao CDC ou à LGPD, responda exatamente esta frase: "Desculpe, só posso responder perguntas sobre o CDC e a LGPD."
 
 Contexto:
 {contexto_texto}
