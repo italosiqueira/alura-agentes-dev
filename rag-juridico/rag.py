@@ -10,7 +10,7 @@ import dotenv
 from langchain_openai import ChatOpenAI
 
 # Cadeia RAG
-#from langchain.chains import RetrievalQA
+#from langchain_classic.chains import RetrievalQA
 
 # Prompt
 from langchain_core.prompts import PromptTemplate

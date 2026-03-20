@@ -1,4 +1,5 @@
 import rag
+import rag_avancado as ragx
 
 def efetua_pergunta():
     print('---\n')
@@ -18,7 +19,7 @@ def inicia_chat():
     prompt = efetua_pergunta()
     
     while prompt.strip().lower() != 'sair':
-        resposta, contexto = rag.responder_pergunta(prompt, rerank=True)
+        resposta, contexto = ragx.responder_pergunta(prompt, rerank=True)
         print(f'\n# RESPOSTA\n{resposta}\n')
         
         if (resposta.strip() != "Desculpe, só posso responder perguntas sobre o CDC e a LGPD."):
