@@ -9,12 +9,17 @@ import ingestao as bd
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.output_parsers import CommaSeparatedListOutputParser
+from langchain_core.runnables import RunnablePassthrough
 
 # Pasta do projeto
 PROJECT_DIR = os.path.dirname(__file__)
 
 # Modelo de linguagem da OpenAI (exemplo: "gpt-4o-mini" ou "gpt-4o")
 LLM_MODEL = "gpt-4o-mini"
+
+# Modelo de linguagem auxiliar (para tarefas auxiliares de reranking, rewriting, etc)
+LLM_MODEL_AUX  = "gpt-4.1-nano"
 
 # Carrega as variáveis de ambiente necessárias (ex: API Keys)
 dotenv.load_dotenv(os.path.join(PROJECT_DIR, ".env"))
@@ -24,7 +29,7 @@ config = dotenv.dotenv_values()
 vectorstore = bd.carregar_vectorstore()
 
 # Modelo utilizado para rescrever a pergunta do usuário
-rewriter_model = ChatOpenAI(model=LLM_MODEL, temperature=0.0, api_key=config['OPENAI_API_KEY'])
+rewriter_model = ChatOpenAI(model=LLM_MODEL_AUX, temperature=0.0, api_key=config['OPENAI_API_KEY'])
 
 rewriter_prompt_template = """
 Você é um assistente especializado em reescrever perguntas de usuários humanos a fim de serem mais efetivas para a recuperação de documentos.
@@ -40,7 +45,7 @@ rewriter_prompt = PromptTemplate.from_template(rewriter_prompt_template)
 rewriter_query_chain = rewriter_prompt | rewriter_model | StrOutputParser()
 
 # Modelo utilizado para ReRanking de documentos
-reranking_model = ChatOpenAI(model=LLM_MODEL, temperature=0.0, api_key=config['OPENAI_API_KEY'])
+reranking_model = ChatOpenAI(model=LLM_MODEL_AUX, temperature=0.0, api_key=config['OPENAI_API_KEY'])
 
 # Prompt template para ReRanking de documentos
 reranking_prompt = PromptTemplate(
@@ -64,8 +69,10 @@ Responda apenas com um número de 0 a 10.
 # ReRanking Chain: PromptTemplate + LLM + OutputParser
 reranking_query_chain = reranking_prompt | reranking_model | StrOutputParser();
 
-rag_model = reranking_model
+# Modelo utilizado para o RAG Avançado
+rag_model = ChatOpenAI(model=LLM_MODEL, temperature=0.0, api_key=config['OPENAI_API_KEY'])
 
+# Prompt template para o RAG Avançado
 rag_prompt_template = """
 Responda somente com base no contexto fornecido.
 Se a pergunta não estiver relacionada ao CDC ou à LGPD, responda exatamente esta frase: "Desculpe, só posso responder perguntas sobre o CDC e a LGPD."
@@ -82,7 +89,41 @@ rag_prompt = PromptTemplate(
     template=rag_prompt_template
 )
 
+# RAG Chain: PromptTemplate + LLM + OutputParser
 rag_chain = rag_prompt | rag_model | StrOutputParser()
+
+# Multiple Query Retrieval RAG Chain
+from langchain_classic.retrievers.multi_query import MultiQueryRetriever
+
+# Prompt template para Multiple Query Retrieval
+rewriter_multi_prompt_template = """Você é um assistente de modelo de linguagens de IA. Sua tarefa é gerar cinco 
+versões diferentes da pergunta do usuário para recuperar documentos relevantes de um banco de dados vetorial.
+Ao gerar múltiplas perspectivas sobre a pergunta do usuário, seu objetivo é ajudar
+o usuário a superar algumas das limitações da busca por similaridade baseada em distância.
+Forneça estas perguntas alternativas separadas por quebras de linha.
+
+Pergunta original: {question}"""
+
+rewriter_multi_prompt = PromptTemplate.from_template(rewriter_multi_prompt_template)
+
+# Multiple Query Retrieval Chain: chain auxiliar para gerar múltiplas perguntas
+rewriter_multi_query_chain = rewriter_multi_prompt | rewriter_model | CommaSeparatedListOutputParser()
+
+rewriter_multi_retriever = MultiQueryRetriever(
+    retriever=vectorstore.as_retriever(),
+    llm_chain=rewriter_multi_query_chain
+)
+
+# Multiple Query Retrieval RAG Chain: Multiple Query Retrieval Chain + RAG Chain
+# Neste caso o nosso Augmented Context é o rewriter_multi_retriever, que gera 
+# múltiplas perguntas e mescla as respostass a cada pergunta para compor um contexto único
+rewriter_multi_rag_chain = (
+    {
+        "contexto": RunnablePassthrough() | rewriter_multi_retriever,
+        "pergunta": RunnablePassthrough()
+    }
+    | rag_prompt | rag_model | StrOutputParser()
+)
 
 def rankeia_documentos(prompt_original):
     # Recupera os documentos mais relevantes para a pergunta original
@@ -111,7 +152,10 @@ def rankeia_documentos(prompt_original):
     return [doc for _, doc in documentos_relevantes_scored_ordered_desc]
 
 def rewrite_query(prompt_original):
-    return rewriter_query_chain.invoke(prompt_original)
+    return rewriter_multi_query_chain.invoke(prompt_original)
+
+def multiple_query_retrieval_query(prompt_original):
+    return rewriter_multi_rag_chain.invoke(prompt_original)
 
 def responder_pergunta(pergunta, rerank=False):
     # Reescreve a pergunta do usuário para ser mais efetiva na recuperação de documentos relevantes
@@ -135,4 +179,14 @@ def responder_pergunta(pergunta, rerank=False):
     return resposta, documentos_relevantes
 
 if __name__ == "__main__":
-    print(rewrite_query("Quais são os direitos do consumidor em relação a produtos com defeito?"))
+    #print(rewrite_query("Quais são os direitos do consumidor em relação a produtos com defeito?"))
+    perguntas = [
+        "Quais são os direitos do consumidor?",
+        "Quando o consentimento é necessário?"
+    ]
+    for pergunta in perguntas:
+        print(f'# PERGUNTA\n{pergunta}\n')
+        resposta = multiple_query_retrieval_query(pergunta)
+        print(f'# RESPOSTA\n{resposta}\n')
+    
+    print('### OBRIGADO POR USAR O ASSISTENTE JURÍDICO! ATÉ LOGO! ###')
